@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "CommercialSlayer (Peacock \u2192 Spotify)",
+  "version": "0.1.2",
+  "description": "Mutes Peacock during ad breaks and unmutes Spotify.",
+  "permissions": [
+    "tabs",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://www.peacocktv.com/*",
+    "https://open.spotify.com/*"
+  ],
+  "background": {
+    "service_worker": "background-main.js"
+  },
+  "action": {
+    "default_title": "CommercialSlayer",
+    "default_popup": "popup-v2.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.peacocktv.com/*"
+      ],
+      "js": [
+        "peacock.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://open.spotify.com/*"
+      ],
+      "js": [
+        "spotify.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

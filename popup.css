@@ -1,0 +1,263 @@
+:root {
+  --bg: #ede7dc;
+  --card: rgba(255, 252, 246, 0.96);
+  --card-border: #d9ccb7;
+  --text: #261f19;
+  --muted: #6b5f52;
+  --accent: #2e6f95;
+  --accent-warm: #c8712b;
+  --ok: #1b7f55;
+  --off: #8c7b67;
+  --danger: #a63b30;
+}
+
+body {
+  margin: 0;
+  background: linear-gradient(180deg, #f5efe3 0%, var(--bg) 100%);
+  color: var(--text);
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+}
+
+.wrap {
+  width: 380px;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.1;
+}
+
+.status-pill {
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fffdf9;
+  background: var(--off);
+}
+
+.status-pill.on {
+  background: var(--ok);
+}
+
+.status-line {
+  margin: 0 0 14px 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 12px;
+  box-shadow: 0 10px 24px rgba(66, 49, 21, 0.07);
+}
+
+.card-title {
+  margin: 0 0 10px 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.setup-row,
+.summary-row {
+  display: grid;
+  grid-template-columns: 88px 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.setup-row + .setup-row,
+.summary-row + .summary-row {
+  margin-top: 10px;
+}
+
+.field-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.field-value {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.small-button,
+.link-button,
+.primary-button,
+.secondary-button {
+  border: 0;
+  border-radius: 11px;
+  font: inherit;
+  cursor: pointer;
+  transition: background 120ms ease, transform 120ms ease, opacity 120ms ease;
+}
+
+.small-button:hover,
+.link-button:hover,
+.primary-button:hover,
+.secondary-button:hover {
+  transform: translateY(-1px);
+}
+
+.small-button {
+  padding: 8px 12px;
+  background: #d9cfbf;
+  color: #41372c;
+}
+
+.link-button {
+  padding: 0;
+  background: transparent;
+  color: var(--accent);
+}
+
+.checklist {
+  margin: 12px 0 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.check-item {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.tip {
+  margin: 10px 0 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.tabs-summary-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.primary-button {
+  width: 100%;
+  padding: 13px 16px;
+  background: var(--accent);
+  color: #fffdf9;
+  font-weight: 700;
+}
+
+.primary-button.on {
+  background: var(--accent-warm);
+}
+
+.primary-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+  transform: none;
+}
+
+.status-big {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 800;
+}
+
+.status-sub {
+  margin: 8px 0 0 0;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.status-meta {
+  margin: 8px 0 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.message {
+  min-height: 18px;
+  margin: 4px 0 12px 0;
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.advanced {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.advanced summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 14px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.advanced summary::-webkit-details-marker {
+  display: none;
+}
+
+.advanced-body {
+  padding: 0 14px 14px 14px;
+}
+
+.advanced-actions,
+.advanced-debug {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.secondary-button {
+  width: 100%;
+  padding: 10px 12px;
+  background: #d9cfbf;
+  color: #41372c;
+}
+
+.raw-output {
+  margin: 0;
+  padding: 10px;
+  max-height: 160px;
+  overflow: auto;
+  background: #f4ede1;
+  border-radius: 10px;
+  color: #43382d;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
