@@ -2,7 +2,7 @@
 
 I don't like commercials. I like music.
 
-CommercialSlayer is a Chrome extension that:
+CommercialSlayer kills ads on Peacock Live TV:
 
 - automatically mutes Peacock during ad breaks and switches your audio to Spotify
 - automatically restores Peacock audio and pauses Spotify when the commercial break ends
