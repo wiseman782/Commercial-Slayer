@@ -31,8 +31,10 @@ let latestState = null;
 let latestDetector = null;
 let latestSnapshot = null;
 let latestActiveTab = null;
+let latestSpotifyReadiness = null;
 let lastUnavailableReason = "";
 let usingFallbackState = false;
+let liveDetailsPending = false;
 
 function shortTab(tabId) {
   if (!tabId) return "—";
@@ -62,6 +64,29 @@ function setDetectorState(text, meta = "") {
   if (metaEl) metaEl.textContent = meta;
 }
 
+function setSpotifyPrimeText(text) {
+  const primeTip = document.getElementById("spotifyPrimeTip");
+  const summaryTip = document.getElementById("spotifySummaryTip");
+  if (primeTip) primeTip.textContent = text;
+  if (summaryTip) summaryTip.textContent = text;
+}
+
+function renderLoading() {
+  const statusPill = document.getElementById("statusPill");
+  statusPill.textContent = "OFF";
+  statusPill.className = "status-pill";
+  document.getElementById("statusLine").textContent = "Loading CommercialSlayer state...";
+  document.getElementById("setupCard").hidden = true;
+  document.getElementById("tabsSummary").hidden = true;
+  document.getElementById("mainToggle").textContent = "Loading...";
+  document.getElementById("mainToggle").disabled = true;
+  document.getElementById("mainToggle").className = "primary-button off";
+  document.getElementById("statusBig").textContent = "LOADING";
+  document.getElementById("statusSub").textContent = "Reading saved tabs and status";
+  document.getElementById("statusMeta").textContent = "Detector: Loading...";
+  setDetectorState("Detector: Loading...", "Waiting for saved state and live detector details.");
+}
+
 function isPeacockUrl(url = "") {
   return /^https:\/\/www\.peacocktv\.com\//.test(url);
 }
@@ -85,7 +110,16 @@ async function persistTabSelection(kind, tab) {
   }
 
   const key = kind === "peacock" ? "peacockTabId" : "spotifyTabId";
-  await chrome.storage.local.set({ [key]: tab.id });
+  const snapshotKey = kind === "peacock" ? "peacockTabSnapshot" : "spotifyTabSnapshot";
+  await chrome.storage.local.set({
+    [key]: tab.id,
+    [snapshotKey]: {
+      id: tab.id,
+      title: tab.title || tab.url || `Tab ${shortTab(tab.id)}`,
+      url: tab.url || "",
+      muted: tab.mutedInfo?.muted ?? false
+    }
+  });
   return { ok: true };
 }
 
@@ -132,35 +166,77 @@ async function buildStoredTabSummary(tabId, matcher) {
   }
 }
 
+function buildStoredSnapshotFallback(kind, tabId, snapshot) {
+  if (!tabId) return null;
+
+  if (snapshot?.id === tabId) {
+    return {
+      id: snapshot.id,
+      title: snapshot.title || snapshot.url || `Saved ${kind} tab`,
+      url: snapshot.url || "",
+      muted: snapshot.muted ?? false
+    };
+  }
+
+  return {
+    id: tabId,
+    title: `Saved ${kind} tab`,
+    url: "",
+    muted: false
+  };
+}
+
 async function getStoredStateFallback() {
   const stored = await chrome.storage.local.get({
     peacockTabId: null,
+    peacockTabSnapshot: null,
     spotifyTabId: null,
+    spotifyTabSnapshot: null,
     enabled: false,
     lastMode: "UNKNOWN"
   });
 
-  const [peacockTab, spotifyTab] = await Promise.all([
-    buildStoredTabSummary(stored.peacockTabId, isPeacockUrl),
-    buildStoredTabSummary(stored.spotifyTabId, isSpotifyUrl)
-  ]);
-
   return {
-    peacockTabId: peacockTab?.id ?? null,
-    spotifyTabId: spotifyTab?.id ?? null,
-    enabled: Boolean(stored.enabled && peacockTab && spotifyTab),
+    peacockTabId: stored.peacockTabId ?? null,
+    peacockTab: buildStoredSnapshotFallback("Peacock", stored.peacockTabId, stored.peacockTabSnapshot),
+    spotifyTabId: stored.spotifyTabId ?? null,
+    spotifyTab: buildStoredSnapshotFallback("Spotify", stored.spotifyTabId, stored.spotifyTabSnapshot),
+    enabled: Boolean(stored.enabled && stored.peacockTabId && stored.spotifyTabId),
     lastMode: stored.lastMode || "UNKNOWN",
-    peacockTab,
-    spotifyTab
+    peacockTabSnapshot: stored.peacockTabSnapshot || null,
+    spotifyTabSnapshot: stored.spotifyTabSnapshot || null
   };
+}
+
+async function readSpotifyReadiness(spotifyTabId) {
+  if (!spotifyTabId) {
+    return { ok: false, reason: "Spotify tab is not set." };
+  }
+
+  try {
+    const response = await chrome.tabs.sendMessage(spotifyTabId, {
+      type: "GET_SPOTIFY_READINESS"
+    });
+
+    if (!response?.ok) {
+      return {
+        ok: false,
+        reason: response?.reason || "Spotify readiness is unavailable."
+      };
+    }
+
+    return response;
+  } catch (error) {
+    return {
+      ok: false,
+      reason: error?.message || "Spotify readiness is unavailable."
+    };
+  }
 }
 
 async function bootstrapFromStorage() {
   try {
-    const [state, activeTab] = await Promise.all([
-      getStoredStateFallback(),
-      getActiveTab().catch(() => null)
-    ]);
+    const state = await getStoredStateFallback();
 
     const hasUsableState = Boolean(
       state.peacockTab ||
@@ -169,14 +245,37 @@ async function bootstrapFromStorage() {
       state.lastMode !== "UNKNOWN"
     );
 
-    latestActiveTab = activeTab;
-
     if (hasUsableState) {
       latestState = state;
       usingFallbackState = true;
       lastUnavailableReason = "";
       render();
     }
+
+    getActiveTab()
+      .then((activeTab) => {
+        latestActiveTab = activeTab;
+        if (latestState) {
+          render();
+        }
+      })
+      .catch(() => {});
+
+    Promise.all([
+      buildStoredTabSummary(state.peacockTabId, isPeacockUrl),
+      buildStoredTabSummary(state.spotifyTabId, isSpotifyUrl)
+    ])
+      .then(([peacockTab, spotifyTab]) => {
+        if (peacockTab || spotifyTab) {
+          latestState = {
+            ...(latestState || {}),
+            peacockTab: peacockTab || latestState?.peacockTab || null,
+            spotifyTab: spotifyTab || latestState?.spotifyTab || null
+          };
+          render();
+        }
+      })
+      .catch(() => {});
   } catch (error) {
     // Initial render can continue with the static HTML defaults.
   }
@@ -305,6 +404,9 @@ function buildStatusText(view) {
   if (!view.running && !view.setupComplete) {
     return "Set Peacock + Spotify, then turn it on.";
   }
+  if (!view.running && view.setupComplete && view.spotifyNeedsPrime) {
+    return "Ready. Spotify may need one manual click before the first break.";
+  }
   if (!view.running && view.setupComplete) {
     return "Ready. Turn it on when you start watching Peacock.";
   }
@@ -318,6 +420,22 @@ function buildStatusText(view) {
     return "Using saved state while background wakes up.";
   }
   return "Running — waiting for Peacock playback.";
+}
+
+function buildSpotifyPrimeText(view) {
+  if (!latestState?.spotifyTab) {
+    return "Tip: Select your Spotify Web Player tab.";
+  }
+
+  if (view.spotifyNeedsPrime) {
+    return "Spotify has not been interacted with in this tab yet. If Chrome blocks autoplay, click once in Spotify before the first break.";
+  }
+
+  if (latestSpotifyReadiness?.ok && (latestSpotifyReadiness.hasUserActivation || latestSpotifyReadiness.isPlaying === true)) {
+    return "Spotify is ready for automatic resume during breaks.";
+  }
+
+  return "Tip: Start Spotify playback once so Chrome can resume it during breaks.";
 }
 
 function buildStatusCard(view) {
@@ -383,7 +501,8 @@ function buildDebugInfo(view) {
           textMatches: latestSnapshot.textMatches || [],
           resourceHints: latestSnapshot.resourceHints || []
         }
-      : null
+      : null,
+    spotifyReadiness: latestSpotifyReadiness
   };
 }
 
@@ -397,9 +516,10 @@ function render() {
   const running = Boolean(latestState?.enabled);
   const mode = latestState?.lastMode || "UNKNOWN";
   const detectionSource = deriveDetectionSource(latestDetector);
+  const spotifyNeedsPrime = Boolean(latestSpotifyReadiness?.ok && latestSpotifyReadiness.needsManualPrime);
   const unavailable = Boolean(lastUnavailableReason && !latestState);
   const stale = usingFallbackState;
-  const view = { setupComplete, running, mode, detectionSource, unavailable, stale };
+  const view = { setupComplete, running, mode, detectionSource, unavailable, stale, spotifyNeedsPrime };
 
   const statusPill = document.getElementById("statusPill");
   statusPill.textContent = running ? "ON" : "OFF";
@@ -423,6 +543,7 @@ function render() {
     `${latestState?.peacockTab ? "✅" : "☐"} Peacock selected`;
   document.getElementById("spotifyChecklist").textContent =
     `${latestState?.spotifyTab ? "✅" : "☐"} Spotify selected`;
+  setSpotifyPrimeText(buildSpotifyPrimeText(view));
 
   const mainToggle = document.getElementById("mainToggle");
   mainToggle.textContent = running ? "Turn Off" : "Turn On";
@@ -432,7 +553,9 @@ function render() {
   const statusCard = buildStatusCard(view);
   document.getElementById("statusBig").textContent = statusCard.label;
   document.getElementById("statusSub").textContent = statusCard.subtext;
-  document.getElementById("statusMeta").textContent = latestDetector?.ok
+  document.getElementById("statusMeta").textContent = liveDetailsPending
+    ? "Detector: Loading..."
+    : latestDetector?.ok
     ? statusCard.meta
     : stale
       ? "Detector: Unavailable while background wakes up"
@@ -451,28 +574,40 @@ async function refresh() {
 
   refreshInFlight = (async () => {
     try {
-      const [state, activeTab] = await Promise.all([
-        getStateWithRetry(),
-        getActiveTab().catch(() => null)
-      ]);
+      liveDetailsPending = true;
+      const state = await getStateWithRetry();
       latestState = state;
-      latestActiveTab = activeTab;
-      latestDetector = await readDetector(state?.peacockTabId);
       lastUnavailableReason = "";
       render();
+
+      const [activeTab, detector, spotifyReadiness] = await Promise.all([
+        getActiveTab().catch(() => null),
+        readDetector(state?.peacockTabId),
+        readSpotifyReadiness(state?.spotifyTabId)
+      ]);
+      latestActiveTab = activeTab;
+      latestDetector = detector;
+      latestSpotifyReadiness = spotifyReadiness;
+      lastUnavailableReason = "";
+      liveDetailsPending = false;
+      render();
     } catch (error) {
+      liveDetailsPending = false;
       if (latestState) {
         usingFallbackState = true;
         lastUnavailableReason = error?.message || "Could not reach background service. Try again.";
         latestDetector = latestDetector?.ok ? latestDetector : null;
+        latestSpotifyReadiness = latestSpotifyReadiness?.ok ? latestSpotifyReadiness : null;
         render();
         setMessage("Using saved state while background wakes up.", true);
       } else {
         latestState = null;
         latestDetector = null;
+        latestSpotifyReadiness = null;
         renderUnavailable("Could not reach background service. Try again.");
       }
     } finally {
+      liveDetailsPending = false;
       refreshInFlight = null;
     }
   })();
@@ -505,7 +640,17 @@ async function selectTab(type) {
     result = fallbackResult;
   }
 
-  setMessage(type === "peacock" ? "Peacock tab selected." : "Spotify tab selected.");
+  if (type === "spotify") {
+    const readiness = await readSpotifyReadiness(tab.id);
+    latestSpotifyReadiness = readiness;
+    setMessage(
+      readiness.ok && readiness.needsManualPrime
+        ? "Spotify tab selected. If Chrome blocks autoplay, click once in Spotify before the first break."
+        : "Spotify tab selected."
+    );
+  } else {
+    setMessage("Peacock tab selected.");
+  }
   await refresh();
 
   if (latestState?.peacockTab && latestState?.spotifyTab) {
@@ -522,8 +667,26 @@ async function startSlayer() {
     return;
   }
 
-  setMessage(`CommercialSlayer started in ${result.startedMode || "UNKNOWN"} mode.`);
   await refresh();
+
+  const spotifyResult = result?.applyResult?.spotifyResult;
+  if (spotifyResult?.reasonCode === "MANUAL_PRIME_REQUIRED" || latestSpotifyReadiness?.needsManualPrime) {
+    setMessage(
+      "CommercialSlayer is on. Spotify needs one manual click or Play in its tab before Chrome can take over.",
+      true
+    );
+    return;
+  }
+
+  if (spotifyResult && !spotifyResult.ok) {
+    setMessage(
+      `CommercialSlayer started, but Spotify ${result.startedMode === "AD" ? "play" : "pause"} failed: ${spotifyResult.reason || "unknown error"}`,
+      true
+    );
+    return;
+  }
+
+  setMessage(`CommercialSlayer started in ${result.startedMode || "UNKNOWN"} mode.`);
 }
 
 async function stopSlayer() {
@@ -553,7 +716,12 @@ async function forceMode(mode) {
   }
 
   const spotifyResult = result.spotifyResult;
-  if (spotifyResult && !spotifyResult.ok) {
+  if (spotifyResult?.reasonCode === "MANUAL_PRIME_REQUIRED") {
+    setMessage(
+      "Forced AD, but Spotify needs one manual click or Play in its tab before Chrome can resume it.",
+      true
+    );
+  } else if (spotifyResult && !spotifyResult.ok) {
     setMessage(
       `Forced ${mode}, but Spotify ${mode === "AD" ? "play" : "pause"} failed: ${spotifyResult.reason || "unknown error"}`,
       true
@@ -646,6 +814,7 @@ window.addEventListener("beforeunload", () => {
 });
 
 (async () => {
+  renderLoading();
   await bootstrapFromStorage();
   await refresh();
 })();

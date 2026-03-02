@@ -64,7 +64,10 @@ const LIKELY_AD_RESOURCE_PATTERNS = [
   /\bvmap\b/i
 ];
 
-const AD_RESOURCE_WINDOW_MS = 12000;
+// FreeWheel ad tracking pings can be spaced out during a long ad pod.
+// Keep ad state alive long enough to bridge those gaps, while still letting
+// the normal Peacock playback UI immediately force a return to SHOW.
+const AD_RESOURCE_WINDOW_MS = 22000;
 
 let detectorSnapshot = {
   inAd: false,

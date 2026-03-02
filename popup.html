@@ -303,27 +303,27 @@
         <h1 class="title">CommercialSlayer</h1>
         <span id="statusPill" class="status-pill">OFF</span>
       </div>
-      <p id="statusLine" class="status-line">Set Peacock + Spotify, then turn it on.</p>
+      <p id="statusLine" class="status-line">Loading CommercialSlayer state...</p>
 
       <div id="message" class="message" aria-live="polite"></div>
 
-      <section id="setupCard" class="card">
+      <section id="setupCard" class="card" hidden>
         <h2 class="card-title">Setup</h2>
         <div class="setup-row">
           <div class="field-label">Peacock tab</div>
-          <div id="peacockTab" class="field-value">Not set</div>
+          <div id="peacockTab" class="field-value">Loading...</div>
           <button id="setPeacock" class="small-button">Choose</button>
         </div>
         <div class="setup-row">
           <div class="field-label">Spotify tab</div>
-          <div id="spotifyTab" class="field-value">Not set</div>
+          <div id="spotifyTab" class="field-value">Loading...</div>
           <button id="setSpotify" class="small-button">Choose</button>
         </div>
         <ul class="checklist">
-          <li id="peacockChecklist" class="check-item">☐ Peacock selected</li>
-          <li id="spotifyChecklist" class="check-item">☐ Spotify selected</li>
+          <li id="peacockChecklist" class="check-item">Loading saved Peacock tab...</li>
+          <li id="spotifyChecklist" class="check-item">Loading saved Spotify tab...</li>
         </ul>
-        <p class="tip">Tip: Start Spotify playback once so Chrome can resume it during breaks.</p>
+        <p id="spotifyPrimeTip" class="tip">Tip: Start Spotify playback once so Chrome can resume it during breaks.</p>
       </section>
 
       <section id="tabsSummary" class="card" hidden>
@@ -341,17 +341,18 @@
           <div id="spotifySummary" class="field-value">Not set</div>
           <span></span>
         </div>
+        <p id="spotifySummaryTip" class="tip">Tip: Start Spotify playback once so Chrome can resume it during breaks.</p>
       </section>
 
       <section class="card">
-        <button id="mainToggle" class="primary-button off">Turn On</button>
+        <button id="mainToggle" class="primary-button off" disabled>Loading...</button>
       </section>
 
       <section class="card">
         <h2 class="card-title">Status</h2>
-        <div id="statusBig" class="status-big">WAITING</div>
-        <p id="statusSub" class="status-sub">Waiting for setup</p>
-        <p id="statusMeta" class="status-meta">Detector: Unavailable</p>
+        <div id="statusBig" class="status-big">LOADING</div>
+        <p id="statusSub" class="status-sub">Reading saved tabs and status</p>
+        <p id="statusMeta" class="status-meta">Detector: Loading...</p>
       </section>
 
       <details id="advancedAccordion" class="advanced">
@@ -368,12 +369,13 @@
             <button id="stopSlayer" class="secondary-button">Turn Off</button>
           </div>
           <div class="card-title">Raw Details</div>
-          <div id="detectorState" class="status-meta">Detector: Unavailable</div>
-          <div id="detectorMeta" class="status-meta">Open Peacock playback to inspect detector details.</div>
+          <div id="detectorState" class="status-meta">Detector: Loading...</div>
+          <div id="detectorMeta" class="status-meta">Waiting for saved state and live detector details.</div>
           <pre id="debugOutput" class="raw-output">Debug details will appear here.</pre>
         </div>
       </details>
 
+      <script src="popup-bootstrap.js"></script>
       <script src="popup-main.js"></script>
     </div>
   </body>

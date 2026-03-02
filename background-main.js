@@ -8,7 +8,9 @@ const MODE = {
 
 const DEFAULT_STATE = {
   peacockTabId: null,
+  peacockTabSnapshot: null,
   spotifyTabId: null,
+  spotifyTabSnapshot: null,
   enabled: false,
   lastMode: MODE.UNKNOWN
 };
@@ -29,6 +31,29 @@ async function getState() {
 async function setState(patch) {
   const current = await getState();
   await chrome.storage.local.set({ ...current, ...patch });
+}
+
+function buildTabSnapshot(tab) {
+  if (!tab?.id) return null;
+
+  return {
+    id: tab.id,
+    title: tab.title || tab.url || "Untitled tab",
+    url: tab.url || "",
+    muted: tab.mutedInfo?.muted ?? false
+  };
+}
+
+function snapshotChanged(previous, next) {
+  if (!previous && !next) return false;
+  if (!previous || !next) return true;
+
+  return (
+    previous.id !== next.id ||
+    previous.title !== next.title ||
+    previous.url !== next.url ||
+    previous.muted !== next.muted
+  );
 }
 
 function setBadge(text) {
@@ -88,12 +113,20 @@ async function cleanupState() {
 
   if (!peacockTab && state.peacockTabId !== null) {
     patch.peacockTabId = null;
+    patch.peacockTabSnapshot = null;
     patch.enabled = false;
+  }
+  if (peacockTab && snapshotChanged(state.peacockTabSnapshot, peacockTab)) {
+    patch.peacockTabSnapshot = peacockTab;
   }
 
   if (!spotifyTab && state.spotifyTabId !== null) {
     patch.spotifyTabId = null;
+    patch.spotifyTabSnapshot = null;
     patch.enabled = false;
+  }
+  if (spotifyTab && snapshotChanged(state.spotifyTabSnapshot, spotifyTab)) {
+    patch.spotifyTabSnapshot = spotifyTab;
   }
 
   if (Object.keys(patch).length) {
@@ -123,8 +156,8 @@ async function saveTabSelection(kind, tabId) {
 
   await setState(
     kind === "peacock"
-      ? { peacockTabId: tabId }
-      : { spotifyTabId: tabId }
+      ? { peacockTabId: tabId, peacockTabSnapshot: buildTabSnapshot(tab) }
+      : { spotifyTabId: tabId, spotifyTabSnapshot: buildTabSnapshot(tab) }
   );
 
   return { ok: true };
@@ -324,7 +357,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return;
       }
 
-      await setState({ peacockTabId: tabId });
+      await setState({
+        peacockTabId: tabId,
+        peacockTabSnapshot: buildTabSnapshot(sender.tab)
+      });
       sendResponse({ ok: true });
       return;
     }
@@ -364,9 +400,11 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
   const patch = {};
   if (state.peacockTabId === tabId) {
     patch.peacockTabId = null;
+    patch.peacockTabSnapshot = null;
   }
   if (state.spotifyTabId === tabId) {
     patch.spotifyTabId = null;
+    patch.spotifyTabSnapshot = null;
   }
   if (Object.keys(patch).length) {
     await setState(patch);
@@ -383,10 +421,12 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
 
   if (state.peacockTabId === tabId && !isPeacockUrl(changeInfo.url)) {
     patch.peacockTabId = null;
+    patch.peacockTabSnapshot = null;
   }
 
   if (state.spotifyTabId === tabId && !isSpotifyUrl(changeInfo.url)) {
     patch.spotifyTabId = null;
+    patch.spotifyTabSnapshot = null;
   }
 
   if (Object.keys(patch).length) {

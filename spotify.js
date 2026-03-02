@@ -81,6 +81,24 @@ function getPlaybackState() {
   };
 }
 
+function getReadiness() {
+  const playbackState = getPlaybackState();
+  const hasUserActivation = Boolean(navigator.userActivation?.hasBeenActive);
+  const { button } = findPrimaryToggleButton();
+  const isPlaying = playbackState.ok ? playbackState.isPlaying : null;
+  const needsManualPrime = Boolean(button && !hasUserActivation && isPlaying !== true);
+
+  return {
+    ok: true,
+    hasUserActivation,
+    hasToggleButton: Boolean(button),
+    isPlaying,
+    label: playbackState.label || null,
+    method: playbackState.method || null,
+    needsManualPrime
+  };
+}
+
 function getActionButton(action) {
   return findPrimaryToggleButton();
 }
@@ -102,13 +120,37 @@ async function setPlayback(action) {
   const shouldPlay = action === "PLAY";
   let state = getPlaybackState();
   if (!state.ok) {
-    return state;
+    const readiness = getReadiness();
+    return {
+      ok: false,
+      isPlaying: readiness.isPlaying,
+      reason: state.reason,
+      reasonCode: "CONTROL_NOT_FOUND",
+      label: readiness.label,
+      method: readiness.method,
+      hasUserActivation: readiness.hasUserActivation,
+      needsManualPrime: readiness.needsManualPrime
+    };
   }
 
   const alreadyInTargetState =
     state.isPlaying === null
       ? false
       : (shouldPlay ? state.isPlaying : !state.isPlaying);
+  const initialReadiness = getReadiness();
+
+  if (alreadyInTargetState) {
+    return {
+      ok: true,
+      isPlaying: state.isPlaying,
+      reason: null,
+      label: state.label || null,
+      method: state.method || null,
+      hasUserActivation: initialReadiness.hasUserActivation,
+      needsManualPrime: initialReadiness.needsManualPrime
+    };
+  }
+
   if (!alreadyInTargetState) {
     let clicked = false;
     let lastMethod = state.method || null;
@@ -131,22 +173,52 @@ async function setPlayback(action) {
     }
 
     if (!clicked) {
+      const readiness = getReadiness();
       return {
         ok: false,
-        isPlaying: state.isPlaying,
+        isPlaying: readiness.isPlaying,
         reason: "Spotify control disappeared before click.",
+        reasonCode: "CONTROL_DISAPPEARED",
         method: lastMethod
+        ,
+        label: readiness.label,
+        hasUserActivation: readiness.hasUserActivation,
+        needsManualPrime: readiness.needsManualPrime
       };
     }
   }
 
   const nextState = getPlaybackState();
+  const readiness = getReadiness();
+  const reachedTargetState =
+    nextState.ok &&
+    nextState.isPlaying !== null &&
+    (shouldPlay ? nextState.isPlaying : !nextState.isPlaying);
+
+  if (!reachedTargetState) {
+    const needsManualPrime = Boolean(shouldPlay && readiness.needsManualPrime);
+    return {
+      ok: false,
+      isPlaying: readiness.isPlaying,
+      reason: needsManualPrime
+        ? "Spotify needs one manual click or Play in its tab before Chrome can resume it."
+        : nextState.reason || `Spotify did not ${shouldPlay ? "start" : "pause"} successfully.`,
+      reasonCode: needsManualPrime ? "MANUAL_PRIME_REQUIRED" : "STATE_NOT_REACHED",
+      label: nextState.label || readiness.label,
+      method: nextState.method || readiness.method,
+      hasUserActivation: readiness.hasUserActivation,
+      needsManualPrime: readiness.needsManualPrime
+    };
+  }
+
   return {
-    ok: nextState.ok,
+    ok: true,
     isPlaying: nextState.isPlaying,
-    reason: nextState.reason || null,
+    reason: null,
     label: nextState.label || null,
-    method: nextState.method || null
+    method: nextState.method || null,
+    hasUserActivation: readiness.hasUserActivation,
+    needsManualPrime: readiness.needsManualPrime
   };
 }
 
@@ -160,6 +232,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     if (msg?.type === "GET_SPOTIFY_PLAYBACK_STATE") {
       sendResponse(getPlaybackState());
+      return;
+    }
+
+    if (msg?.type === "GET_SPOTIFY_READINESS") {
+      sendResponse(getReadiness());
       return;
     }
 
