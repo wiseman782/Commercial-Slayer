@@ -23,6 +23,25 @@ function isSpotifyUrl(url = "") {
   return /^https:\/\/open\.spotify\.com\//.test(url);
 }
 
+async function findAutoAssignableTab(matcher, options = {}) {
+  const { urlPatterns = [] } = options;
+
+  try {
+    const tabs = await chrome.tabs.query(
+      urlPatterns.length
+        ? { lastFocusedWindow: true, url: urlPatterns }
+        : { lastFocusedWindow: true }
+    );
+
+    const candidates = tabs.filter((tab) => matcher(tab.url || ""));
+    if (!candidates.length) return null;
+
+    return candidates.find((tab) => tab.active) || candidates[0];
+  } catch (error) {
+    return null;
+  }
+}
+
 async function getState() {
   const data = await chrome.storage.local.get(DEFAULT_STATE);
   return { ...DEFAULT_STATE, ...data };
@@ -107,8 +126,8 @@ async function buildTabSummary(tabId, matcher) {
 
 async function cleanupState() {
   const state = await getState();
-  const peacockTab = await buildTabSummary(state.peacockTabId, isPeacockUrl);
-  const spotifyTab = await buildTabSummary(state.spotifyTabId, isSpotifyUrl);
+  let peacockTab = await buildTabSummary(state.peacockTabId, isPeacockUrl);
+  let spotifyTab = await buildTabSummary(state.spotifyTabId, isSpotifyUrl);
   const patch = {};
 
   if (!peacockTab && state.peacockTabId !== null) {
@@ -120,10 +139,24 @@ async function cleanupState() {
     patch.peacockTabSnapshot = peacockTab;
   }
 
-  if (!spotifyTab && state.spotifyTabId !== null) {
-    patch.spotifyTabId = null;
-    patch.spotifyTabSnapshot = null;
-    patch.enabled = false;
+  if (!spotifyTab) {
+    const autoSpotifyTab = await findAutoAssignableTab(isSpotifyUrl, {
+      urlPatterns: ["https://open.spotify.com/*"]
+    });
+
+    if (autoSpotifyTab) {
+      spotifyTab = buildTabSnapshot(autoSpotifyTab);
+      if (state.spotifyTabId !== autoSpotifyTab.id) {
+        patch.spotifyTabId = autoSpotifyTab.id;
+      }
+      if (snapshotChanged(state.spotifyTabSnapshot, spotifyTab)) {
+        patch.spotifyTabSnapshot = spotifyTab;
+      }
+    } else if (state.spotifyTabId !== null) {
+      patch.spotifyTabId = null;
+      patch.spotifyTabSnapshot = null;
+      patch.enabled = false;
+    }
   }
   if (spotifyTab && snapshotChanged(state.spotifyTabSnapshot, spotifyTab)) {
     patch.spotifyTabSnapshot = spotifyTab;
@@ -360,6 +393,27 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       await setState({
         peacockTabId: tabId,
         peacockTabSnapshot: buildTabSnapshot(sender.tab)
+      });
+      sendResponse({ ok: true });
+      return;
+    }
+    if (msg?.type === "REGISTER_SPOTIFY_TAB") {
+      const tabId = sender.tab?.id;
+      const url = sender.tab?.url || "";
+      if (!tabId || !isSpotifyUrl(url)) {
+        sendResponse({ ok: false, error: "Message did not come from a Spotify tab." });
+        return;
+      }
+
+      const state = await getState();
+      if (state.spotifyTabId && state.spotifyTabId !== tabId) {
+        sendResponse({ ok: true, skipped: true });
+        return;
+      }
+
+      await setState({
+        spotifyTabId: tabId,
+        spotifyTabSnapshot: buildTabSnapshot(sender.tab)
       });
       sendResponse({ ok: true });
       return;

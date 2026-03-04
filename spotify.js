@@ -13,6 +13,8 @@ const FALLBACK_BUTTON_SELECTORS = [
   'button[title*="Play" i]'
 ];
 
+const REGISTER_INTERVAL_MS = 15000;
+
 function isVisibleButton(button) {
   if (!(button instanceof HTMLButtonElement)) return false;
   const rect = button.getBoundingClientRect();
@@ -245,3 +247,34 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   return true;
 });
+
+if (window.top === window) {
+  let registerTimer = null;
+
+  async function registerSpotifyTab() {
+    try {
+      await chrome.runtime.sendMessage({ type: "REGISTER_SPOTIFY_TAB" });
+    } catch (error) {
+      // service worker may be asleep; periodic registration will retry
+    }
+  }
+
+  registerSpotifyTab();
+  registerTimer = window.setInterval(registerSpotifyTab, REGISTER_INTERVAL_MS);
+
+  window.addEventListener("focus", () => {
+    registerSpotifyTab();
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      registerSpotifyTab();
+    }
+  });
+
+  window.addEventListener("beforeunload", () => {
+    if (registerTimer) {
+      window.clearInterval(registerTimer);
+    }
+  });
+}

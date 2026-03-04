@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CommercialSlayer (Peacock \u2192 Spotify)",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Mutes Peacock during ad breaks and unmutes Spotify.",
   "permissions": [
     "tabs",
@@ -16,7 +16,7 @@
   },
   "action": {
     "default_title": "CommercialSlayer",
-    "default_popup": "popup-v3.html"
+    "default_popup": "popup-v4.html"
   },
   "content_scripts": [
     {
